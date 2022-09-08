@@ -7,204 +7,262 @@
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fkylemanna%2Fdocker-openvpn.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fkylemanna%2Fdocker-openvpn?ref=badge_shield)
 
 
-OpenVPN server in a Docker container complete with an EasyRSA PKI CA.
+{{{Instruction de commande de ligne}}}
 
-Extensively tested on [Digital Ocean $5/mo node](http://bit.ly/1C7cKr3) and has
-a corresponding [Digital Ocean Community Tutorial](http://bit.ly/1AGUZkq).
+Vous pouvez aussi  utiliser des fichiers de votre propre ordinateurs en utilisant les instructions ci-dessous .
 
-#### Upstream Links
+git config --global user.name "nom_utilisateur"
+git config --global user.email "email_utilisateur"
 
-* Docker Registry @ [kylemanna/openvpn](https://hub.docker.com/r/kylemanna/openvpn/)
-* GitHub @ [kylemanna/docker-openvpn](https://github.com/kylemanna/docker-openvpn)
+-*{{Créez un nouveaux dépôt}}
 
-## Quick Start
+git clone ssh://git@git.ipeos.com:10022/spoullet/openvpn.git
+cd openvpn
+touch README.md
+git add README.md
+git commit -m "add README"
+git push -u origin master
 
-* Pick a name for the `$OVPN_DATA` data volume container. It's recommended to
-  use the `ovpn-data-` prefix to operate seamlessly with the reference systemd
-  service.  Users are encourage to replace `example` with a descriptive name of
-  their choosing.
+-*{{Pousser un fichier existant}}
 
-      OVPN_DATA="ovpn-data-example"
+cd "fichier_existant"
+git init
+git remote add origin ssh://git@git.ipeos.com:10022/spoullet/openvpn.git
+git add .
+git commit -m "Initial commit"
+git push -u origin master
 
-* Initialize the `$OVPN_DATA` container that will hold the configuration files
-  and certificates.  The container will prompt for a passphrase to protect the
-  private key used by the newly generated certificate authority.
+-*{{Poussez un dépôt Git existant}} 
 
-      docker volume create --name $OVPN_DATA
-      docker run -v $OVPN_DATA:/etc/openvpn --rm kylemanna/openvpn ovpn_genconfig -u udp://VPN.SERVERNAME.COM
-      docker run -v $OVPN_DATA:/etc/openvpn --rm -it kylemanna/openvpn ovpn_initpki
+cd existing_repo
+git remote rename origin old-origin
+git remote add origin ssh://git@git.ipeos.com:10022/spoullet/openvpn.git
+git push -u origin --all
+git push -u origin --tags
 
-* Start OpenVPN server process
+----
 
-      docker run -v $OVPN_DATA:/etc/openvpn -d -p 1194:1194/udp --cap-add=NET_ADMIN kylemanna/openvpn
+-*{{{Démarrage Rapide}}}
 
-* Generate a client certificate without a passphrase
+Choisissez un nom pour le conteneur de volume de données $OVPN_DATA. Il est recommandé d'utiliser le préfixe  ovpn-data pour opérer de façon transparente  avec la référence du service systemd. Les utilisateurs sont encouragés  à remplacer l'exemple  avec un nom descriptif de leur choix.
 
-      docker run -v $OVPN_DATA:/etc/openvpn --rm -it kylemanna/openvpn easyrsa build-client-full CLIENTNAME nopass
+OVPN_DATA="ovpn-data-example"
 
-* Retrieve the client configuration with embedded certificates
-
-      docker run -v $OVPN_DATA:/etc/openvpn --rm kylemanna/openvpn ovpn_getclient CLIENTNAME > CLIENTNAME.ovpn
-
-## Next Steps
-
-### More Reading
-
-Miscellaneous write-ups for advanced configurations are available in the
-[docs](docs) folder.
-
-### Systemd Init Scripts
-
-A `systemd` init script is available to manage the OpenVPN container.  It will
-start the container on system boot, restart the container if it exits
-unexpectedly, and pull updates from Docker Hub to keep itself up to date.
-
-Please refer to the [systemd documentation](docs/systemd.md) to learn more.
-
-### Docker Compose
-
-If you prefer to use `docker-compose` please refer to the [documentation](docs/docker-compose.md).
-
-## Debugging Tips
-
-* Create an environment variable with the name DEBUG and value of 1 to enable debug output (using "docker -e").
-
-        docker run -v $OVPN_DATA:/etc/openvpn -p 1194:1194/udp --cap-add=NET_ADMIN -e DEBUG=1 kylemanna/openvpn
-
-* Test using a client that has openvpn installed correctly
-
-        $ openvpn --config CLIENTNAME.ovpn
-
-* Run through a barrage of debugging checks on the client if things don't just work
-
-        $ ping 8.8.8.8    # checks connectivity without touching name resolution
-        $ dig google.com  # won't use the search directives in resolv.conf
-        $ nslookup google.com # will use search
-
-* Consider setting up a [systemd service](/docs/systemd.md) for automatic
-  start-up at boot time and restart in the event the OpenVPN daemon or Docker
-  crashes.
-
-## How Does It Work?
-
-Initialize the volume container using the `kylemanna/openvpn` image with the
-included scripts to automatically generate:
-
-- Diffie-Hellman parameters
-- a private key
-- a self-certificate matching the private key for the OpenVPN server
-- an EasyRSA CA key and certificate
-- a TLS auth key from HMAC security
-
-The OpenVPN server is started with the default run cmd of `ovpn_run`
-
-The configuration is located in `/etc/openvpn`, and the Dockerfile
-declares that directory as a volume. It means that you can start another
-container with the `-v` argument, and access the configuration.
-The volume also holds the PKI keys and certs so that it could be backed up.
-
-To generate a client certificate, `kylemanna/openvpn` uses EasyRSA via the
-`easyrsa` command in the container's path.  The `EASYRSA_*` environmental
-variables place the PKI CA under `/etc/openvpn/pki`.
-
-Conveniently, `kylemanna/openvpn` comes with a script called `ovpn_getclient`,
-which dumps an inline OpenVPN client configuration file.  This single file can
-then be given to a client for access to the VPN.
-
-To enable Two Factor Authentication for clients (a.k.a. OTP) see [this document](/docs/otp.md).
-
-## OpenVPN Details
-
-We use `tun` mode, because it works on the widest range of devices.
-`tap` mode, for instance, does not work on Android, except if the device
-is rooted.
-
-The topology used is `net30`, because it works on the widest range of OS.
-`p2p`, for instance, does not work on Windows.
-
-The UDP server uses`192.168.255.0/24` for dynamic clients by default.
-
-The client profile specifies `redirect-gateway def1`, meaning that after
-establishing the VPN connection, all traffic will go through the VPN.
-This might cause problems if you use local DNS recursors which are not
-directly reachable, since you will try to reach them through the VPN
-and they might not answer to you. If that happens, use public DNS
-resolvers like those of Google (8.8.4.4 and 8.8.8.8) or OpenDNS
-(208.67.222.222 and 208.67.220.220).
+Initialiser le conteneur $OPVN_DATA qui contiendra les fichiers de configuration  et les  certificats. Le conteneur vous demandera une passe-phrase pour protéger la clé privée utilisé par le nouvellement généré certificat d’autorité.
 
 
-## Security Discussion
+docker volume create --name $OVPN_DATA
+docker run -v $OVPN_DATA:/etc/openvpn --rm kylemanna/openvpn ovpn_genconfig -u udp://VPN.SERVERNAME.COM
+docker run -v $OVPN_DATA:/etc/openvpn --rm -it kylemanna/openvpn ovpn_initpki
 
-The Docker container runs its own EasyRSA PKI Certificate Authority.  This was
-chosen as a good way to compromise on security and convenience.  The container
-runs under the assumption that the OpenVPN container is running on a secure
-host, that is to say that an adversary does not have access to the PKI files
-under `/etc/openvpn/pki`.  This is a fairly reasonable compromise because if an
-adversary had access to these files, the adversary could manipulate the
-function of the OpenVPN server itself (sniff packets, create a new PKI CA, MITM
-packets, etc).
+ -*{{ Démarrer le processus du serveur  OpenVPN server}}
 
-* The certificate authority key is kept in the container by default for
-  simplicity.  It's highly recommended to secure the CA key with some
-  passphrase to protect against a filesystem compromise.  A more secure system
-  would put the EasyRSA PKI CA on an offline system (can use the same Docker
-  image and the script [`ovpn_copy_server_files`](/docs/paranoid.md) to accomplish this).
-* It would be impossible for an adversary to sign bad or forged certificates
-  without first cracking the key's passphase should the adversary have root
-  access to the filesystem.
-* The EasyRSA `build-client-full` command will generate and leave keys on the
-  server, again possible to compromise and steal the keys.  The keys generated
-  need to be signed by the CA which the user hopefully configured with a passphrase
-  as described above.
-* Assuming the rest of the Docker container's filesystem is secure, TLS + PKI
-  security should prevent any malicious host from using the VPN.
+docker run -v $OVPN_DATA:/etc/openvpn -d -p 1194:1194/udp --cap-add=NET_ADMIN kylemanna/openvpn
+
+ -*{{Générer  un certificat client sans mot de passe}}
+
+ docker run -v $OVPN_un DATA:/etc/openvpn --rm -it kylemanna/openvpn easyrsa build-client-full CLIENTNAME nopass
+
+ -*{{Récupéré la configuration du client avec les  certifcats embarqués .}}
+
+ docker run -v $OVPN_DATA:/etc/openvpn --rm kylemanna/openvpn ovpn_getclient CLIENTNAME > CLIENTNAME.ovpn
+
+ -*{{Révocation des certificats clients  .}}
+
+docker exec -it OPENVPN-CONTAINER easyrsa revoke MY-USER-CN
+docker exec -it OPENVPN-CONTAINER easyrsa gen-crl
+
+Révoque le certificat de MY-USER-CN et génére la liste de révocation de certificats (CRL)
+
+Ou à l'aide du ovpn_revokeclientscript :
+
+docker run --rm -it -v $OVPN_DATA:/etc/openvpn kylemanna/openvpn ovpn_revokeclient client1
+
+ -*{{Liste des clients}}
+docker run --rm -it -v $OVPN_DATA:/etc/openvpn kylemanna/openvpn ovpn_listclients
+
+ou
+
+sudo cat /srv/wakandaapps/ovpn/data/pki/index.txt
+
+-*{{Astuce de débogage }} 
+-* Créé une variable d'environnement avec le nom DEBUG et la valeur  1 pour déclencher  une sortie débogage ( utilisé " docker -e") 
+
+ docker run -v $OVPN_DATA:/etc/openvpn -p 1194:1194/udp --cap-add=NET_ADMIN -e DEBUG=1 kylemanna/openvpn
+
+-*{{Test en utilisant un client qui a openvpn installé correctement }}
+
+$ openvpn --config CLIENTNAME.ovpn
+
+-*{{Démarrer un  barrage de  vérification de débogage  sur le client si les choses ne marchent pas.}} 
+
+$ ping 8.8.8.8    #  Vérifier la connectivité sans toucher à la résolution de nom.
+$ dig google.com  # N'utilisera pas la directive de recherche dans resolv.conf.
+$ nslookup google.com # Utilisera recherche.
+
+Considerons la mise en place d'un service systemd pour demarrage automatique  au demarrage de la machine et un redemarrage  dans le cas ou le daemon Openvpn ou le Docker Crash. 
+
+-*{{Comment cela fonctionne ?}} 
+
+Initialiser le conteneur de volume en utilisant l'image  Kylemanna/openvpn  avec le script inclu pour générer automatiquement:
+
+   -{{Les paramètres Diffie-Hellman }}
+   -{{Une clé privée }}
+   -{{Un auto-certificat correspondant à  la clé privée pour le serveur OpenVPN.}}
+   -{{Une clé et un certificat   EasyRSA CA }}
+   -{{Une clé TLS auth  de sécurité HMAC}}
+
+Le serveur OpenVPN est démarré avec commande de démarrage par défaut de opvn_run
+
+La configuration est localisé dans /etc/openvpn, et le fichier DOCKER déclare ce dossier comme étant un volume. Cela signifie que vous pouvez démarrer un autre conteneur avec l'argument (-v), et accéder à la configuration.Le volume contient aussi les clés PKI et certificat pour qu'il puisse être  sauvegarder.
+
+Pour générer un certicat client , kylemanna/openvpn utilise EasyRSA via la command easyrsa dans le chemin du conteneur.La variable d'environnement EASYRSA place le PKI CA dans /etc/openvpn/pki.
+Idéalement kylemanna/openvpn  viens avec un script appelé ovpn_getclient, lequel depose un fichier de  configuration OpenVPN . Ce fichier seul peut étre donné à un client pour accéder au VPN.
+
+Pour activer l'Authentification à double facteurs pour le client(a.k.a. OTP) regarder ce document.
+OpenVPN Details
+
+On utilise le mode "{{tun}}" , car il marche avec la plus grande variété d'appareil . 
+Par exemple le mode "{{tap}}" ne marche pas avec Android  sauf si l'appareil est routé .
+
+La topologie utilisé est net30, car elle fonctionne avec la plus grande  variété de système d'exploitation. Par exemple p2p ne marche pas avec Windows
+
+Le serveur UDP utilise 192.168.255.0/24 pour les clients dynamiques par défaut.
+
+Le profil client spécifie la passerelle de redirection def1, ce qui signifie qu'après l'établissement de la connexion VPN, tout le trafic passera par le VPN. Cela peut poser des problèmes si vous utilisez des récurseurs DNS locaux qui ne sont pas directement accessibles, car vous essayer de les atteindre via le VPN et ils pourraient ne pas vous répondre. Si cela se produit, utilisez des résolveurs DNS publics comme ceux de Google (8.8.4.4 et 8.8.8.8) ou OpenDNS (208.67.222.222 et 208.67.220.220).
+Discussion sur la sécurité
 
 
-## Benefits of Running Inside a Docker Container
 
-### The Entire Daemon and Dependencies are in the Docker Image
+{{{Instruction de commande de ligne}}}
 
-This means that it will function correctly (after Docker itself is setup) on
-all distributions Linux distributions such as: Ubuntu, Arch, Debian, Fedora,
-etc.  Furthermore, an old stable server can run a bleeding edge OpenVPN server
-without having to install/muck with library dependencies (i.e. run latest
-OpenVPN with latest OpenSSL on Ubuntu 12.04 LTS).
+Vous pouvez aussi  utiliser des fichiers de votre propre ordinateurs en utilisant les instructions ci-dessous .
 
-### It Doesn't Stomp All Over the Server's Filesystem
+git config --global user.name "nom_utilisateur"
+git config --global user.email "email_utilisateur"
 
-Everything for the Docker container is contained in two images: the ephemeral
-run time image (kylemanna/openvpn) and the `$OVPN_DATA` data volume. To remove
-it, remove the corresponding containers, `$OVPN_DATA` data volume and Docker
-image and it's completely removed.  This also makes it easier to run multiple
-servers since each lives in the bubble of the container (of course multiple IPs
-or separate ports are needed to communicate with the world).
+-*{{Créez un nouveaux dépôt}}
 
-### Some (arguable) Security Benefits
+git clone ssh://git@git.ipeos.com:10022/spoullet/openvpn.git
+cd openvpn
+touch README.md
+git add README.md
+git commit -m "add README"
+git push -u origin master
 
-At the simplest level compromising the container may prevent additional
-compromise of the server.  There are many arguments surrounding this, but the
-take away is that it certainly makes it more difficult to break out of the
-container.  People are actively working on Linux containers to make this more
-of a guarantee in the future.
+-*{{Pousser un fichier existant}}
 
-## Differences from jpetazzo/dockvpn
+cd "fichier_existant"
+git init
+git remote add origin ssh://git@git.ipeos.com:10022/spoullet/openvpn.git
+git add .
+git commit -m "Initial commit"
+git push -u origin master
 
-* No longer uses serveconfig to distribute the configuration via https
-* Proper PKI support integrated into image
-* OpenVPN config files, PKI keys and certs are stored on a storage
-  volume for re-use across containers
-* Addition of tls-auth for HMAC security
+-*{{Poussez un dépôt Git existant}} 
 
-## Originally Tested On
+cd existing_repo
+git remote rename origin old-origin
+git remote add origin ssh://git@git.ipeos.com:10022/spoullet/openvpn.git
+git push -u origin --all
+git push -u origin --tags
 
-* Docker hosts:
-  * server a [Digital Ocean](https://www.digitalocean.com/?refcode=d19f7fe88c94) Droplet with 512 MB RAM running Ubuntu 14.04
-* Clients
-  * Android App OpenVPN Connect 1.1.14 (built 56)
-     * OpenVPN core 3.0 android armv7a thumb2 32-bit
-  * OS X Mavericks with Tunnelblick 3.4beta26 (build 3828) using openvpn-2.3.4
-  * ArchLinux OpenVPN pkg 2.3.4-1
+----
+
+-*{{{Démarrage Rapide}}}
+
+Choisissez un nom pour le conteneur de volume de données $OVPN_DATA. Il est recommandé d'utiliser le préfixe  ovpn-data pour opérer de façon transparente  avec la référence du service systemd. Les utilisateurs sont encouragés  à remplacer l'exemple  avec un nom descriptif de leur choix.
+
+OVPN_DATA="ovpn-data-example"
+
+Initialiser le conteneur $OPVN_DATA qui contiendra les fichiers de configuration  et les  certificats. Le conteneur vous demandera une passe-phrase pour protéger la clé privée utilisé par le nouvellement généré certificat d’autorité.
+
+
+docker volume create --name $OVPN_DATA
+docker run -v $OVPN_DATA:/etc/openvpn --rm kylemanna/openvpn ovpn_genconfig -u udp://VPN.SERVERNAME.COM
+docker run -v $OVPN_DATA:/etc/openvpn --rm -it kylemanna/openvpn ovpn_initpki
+
+ -*{{ Démarrer le processus du serveur  OpenVPN server}}
+
+docker run -v $OVPN_DATA:/etc/openvpn -d -p 1194:1194/udp --cap-add=NET_ADMIN kylemanna/openvpn
+
+ -*{{Générer  un certificat client sans mot de passe}}
+
+ docker run -v $OVPN_un DATA:/etc/openvpn --rm -it kylemanna/openvpn easyrsa build-client-full CLIENTNAME nopass
+
+ -*{{Récupéré la configuration du client avec les  certifcats embarqués .}}
+
+ docker run -v $OVPN_DATA:/etc/openvpn --rm kylemanna/openvpn ovpn_getclient CLIENTNAME > CLIENTNAME.ovpn
+
+ -*{{Révocation des certificats clients  .}}
+
+docker exec -it OPENVPN-CONTAINER easyrsa revoke MY-USER-CN
+docker exec -it OPENVPN-CONTAINER easyrsa gen-crl
+
+Révoque le certificat de MY-USER-CN et génére la liste de révocation de certificats (CRL)
+
+Ou à l'aide du ovpn_revokeclientscript :
+
+docker run --rm -it -v $OVPN_DATA:/etc/openvpn kylemanna/openvpn ovpn_revokeclient client1
+
+ -*{{Liste des clients}}
+docker run --rm -it -v $OVPN_DATA:/etc/openvpn kylemanna/openvpn ovpn_listclients
+
+ou
+
+sudo cat /srv/wakandaapps/ovpn/data/pki/index.txt
+
+-*{{Astuce de débogage }} 
+-* Créé une variable d'environnement avec le nom DEBUG et la valeur  1 pour déclencher  une sortie débogage ( utilisé " docker -e") 
+
+ docker run -v $OVPN_DATA:/etc/openvpn -p 1194:1194/udp --cap-add=NET_ADMIN -e DEBUG=1 kylemanna/openvpn
+
+-*{{Test en utilisant un client qui a openvpn installé correctement }}
+
+$ openvpn --config CLIENTNAME.ovpn
+
+-*{{Démarrer un  barrage de  vérification de débogage  sur le client si les choses ne marchent pas.}} 
+
+$ ping 8.8.8.8    #  Vérifier la connectivité sans toucher à la résolution de nom.
+$ dig google.com  # N'utilisera pas la directive de recherche dans resolv.conf.
+$ nslookup google.com # Utilisera recherche.
+
+Considerons la mise en place d'un service systemd pour demarrage automatique  au demarrage de la machine et un redemarrage  dans le cas ou le daemon Openvpn ou le Docker Crash. 
+
+-*{{Comment cela fonctionne ?}} 
+
+Initialiser le conteneur de volume en utilisant l'image  Kylemanna/openvpn  avec le script inclu pour générer automatiquement:
+
+   -{{Les paramètres Diffie-Hellman }}
+   -{{Une clé privée }}
+   -{{Un auto-certificat correspondant à  la clé privée pour le serveur OpenVPN.}}
+   -{{Une clé et un certificat   EasyRSA CA }}
+   -{{Une clé TLS auth  de sécurité HMAC}}
+
+Le serveur OpenVPN est démarré avec commande de démarrage par défaut de opvn_run
+
+La configuration est localisé dans /etc/openvpn, et le fichier DOCKER déclare ce dossier comme étant un volume. Cela signifie que vous pouvez démarrer un autre conteneur avec l'argument (-v), et accéder à la configuration.Le volume contient aussi les clés PKI et certificat pour qu'il puisse être  sauvegarder.
+
+Pour générer un certicat client , kylemanna/openvpn utilise EasyRSA via la command easyrsa dans le chemin du conteneur.La variable d'environnement EASYRSA place le PKI CA dans /etc/openvpn/pki.
+Idéalement kylemanna/openvpn  viens avec un script appelé ovpn_getclient, lequel depose un fichier de  configuration OpenVPN . Ce fichier seul peut étre donné à un client pour accéder au VPN.
+
+Pour activer l'Authentification à double facteurs pour le client(a.k.a. OTP) regarder ce document.
+OpenVPN Details
+
+On utilise le mode "{{tun}}" , car il marche avec la plus grande variété d'appareil . 
+Par exemple le mode "{{tap}}" ne marche pas avec Android  sauf si l'appareil est routé .
+
+La topologie utilisé est net30, car elle fonctionne avec la plus grande  variété de système d'exploitation. Par exemple p2p ne marche pas avec Windows
+
+Le serveur UDP utilise 192.168.255.0/24 pour les clients dynamiques par défaut.
+
+Le profil client spécifie la passerelle de redirection def1, ce qui signifie qu'après l'établissement de la connexion VPN, tout le trafic passera par le VPN. Cela peut poser des problèmes si vous utilisez des récurseurs DNS locaux qui ne sont pas directement accessibles, car vous essayer de les atteindre via le VPN et ils pourraient ne pas vous répondre. Si cela se produit, utilisez des résolveurs DNS publics comme ceux de Google (8.8.4.4 et 8.8.8.8) ou OpenDNS (208.67.222.222 et 208.67.220.220).
+Discussion sur la sécurité
+
+
+
 
 
 ## License
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fkylemanna%2Fdocker-openvpn.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fkylemanna%2Fdocker-openvpn?ref=badge_large)
+](https://github.com/kylemanna/docker-openvpn)
